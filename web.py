@@ -1,6 +1,5 @@
 """
-Web сервер + запуск бота для Render (Членометр)
-ВАЖНО: Этот файл НЕ вызывает асинхронные функции БД напрямую!
+Web сервер + API + запуск бота для Render (Членометр)
 """
 
 from flask import Flask, jsonify
@@ -9,6 +8,7 @@ import time
 import os
 import sys
 import traceback
+from datetime import datetime
 
 print("=" * 70)
 print("🚀 ЧЛЕНОМЕТР - ЗАПУСК ПРИ ИМПОРТЕ...")
@@ -20,8 +20,12 @@ app = Flask(__name__)
 bot_status = {
     'running': False,
     'started_at': None,
-    'message': 'Initializing...'
+    'message': 'Initializing...',
+    'users': 0,
+    'servers': 0
 }
+
+# ===== API ENDPOINTS ДЛЯ САЙТА =====
 
 @app.route('/')
 def home():
@@ -31,7 +35,7 @@ def home():
     return f"""
     <html>
     <head>
-        <title>Членометр</title>
+        <title>Членометр API</title>
         <style>
             body {{ 
                 background: linear-gradient(135deg, #0f0f13 0%, #1a237e 100%);
@@ -66,33 +70,95 @@ def home():
     </head>
     <body>
         <div class="container">
-            <h1>✅ Членометр</h1>
+            <h1>✅ Членометр API</h1>
             <div class="stats">
                 <p>🌐 Веб-сервер активен</p>
                 <p>🤖 Статус бота: {status_text}</p>
+                <p>👥 Пользователей: {bot_status['users']}</p>
+                <p>📡 Серверов: {bot_status['servers']}</p>
             </div>
             <div class="status {status_html}">
                 {bot_status['message']}
             </div>
             <p style="margin-top: 30px; color: #b9bbbe;">
-                Сайт: dickuplolka.gt.tc
+                Сайт: dickuplolka.gt.tc<br>
+                API: <a href="/api/stats" style="color: #64b5f6;">/api/stats</a>
             </p>
         </div>
     </body>
     </html>
     """
 
+@app.route('/api/stats')
+def api_stats():
+    """API для сайта - отдаёт статистику"""
+    return jsonify({
+        'success': True,
+        'users': bot_status['users'],
+        'servers': bot_status['servers'],
+        'bot_running': bot_status['running'],
+        'message': bot_status['message']
+    })
+
+@app.route('/api/top')
+def api_top():
+    """API для сайта - отдаёт топ 10"""
+    try:
+        # Импортируем базу данных
+        from database import Database
+        db = Database()
+        
+        # Топ по размеру
+        top_size = db.get_global_top(10)
+        
+        # Топ по активности
+        top_wanks = db.get_global_top_by_wanks(10)
+        
+        return jsonify({
+            'success': True,
+            'top_size': top_size,
+            'top_wanks': top_wanks
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'top_size': [],
+            'top_wanks': []
+        })
+
 @app.route('/health')
 def health():
     return jsonify({
         'status': 'ok' if bot_status['running'] else 'bot_not_running',
         'bot_running': bot_status['running'],
+        'users': bot_status['users'],
+        'servers': bot_status['servers'],
         'message': bot_status['message']
     })
 
-@app.route('/api/status')
-def api_status():
-    return jsonify(bot_status)
+# ===== ЗАПУСК БОТА =====
+
+def update_bot_stats():
+    """Периодически обновляет статистику бота"""
+    global bot_status
+    
+    while True:
+        try:
+            if bot_status['running']:
+                # Импортируем базу
+                from database import Database
+                db = Database()
+                
+                # Обновляем статистику
+                bot_status['users'] = db.get_total_users()
+                # Сервера считаем из client.guilds (но это асинхронно, поэтому пока заглушка)
+                bot_status['servers'] = 1  # TODO: получить из бота
+                
+        except Exception as e:
+            print(f"⚠️ Ошибка обновления статистики: {e}")
+        
+        time.sleep(60)  # Обновляем каждую минуту
 
 def run_bot():
     """Запускает бота в отдельном потоке"""
@@ -121,7 +187,7 @@ def run_bot():
         bot_status['message'] = 'Connecting to Lolka...'
         bot_status['running'] = True
         
-        # Запускаем бота (это блокирующий вызов, поэтому он в потоке)
+        # Запускаем бота
         bot_module.client.run(token)
         
     except Exception as e:
@@ -132,7 +198,7 @@ def run_bot():
         print("=" * 70)
         traceback.print_exc()
         
-        # Пробуем перезапустить через 60 секунд
+        # Перезапуск через 60 секунд
         print("⏳ Перезапуск бота через 60 секунд...")
         time.sleep(60)
         threading.Thread(target=run_bot, daemon=True).start()
@@ -142,17 +208,21 @@ def run_web():
     print("🌐 Запуск веб-сервера на http://0.0.0.0:8080")
     app.run(host='0.0.0.0', port=8080, debug=False, threaded=True)
 
-# ===== ЗАПУСК ПРИ ИМПОРТЕ МОДУЛЯ (для Gunicorn) =====
+# ===== ЗАПУСК ПРИ ИМПОРТЕ МОДУЛЯ =====
 print("📦 Инициализация системы...")
 
 # 1. Запускаем веб-сервер в фоне
 web_thread = threading.Thread(target=run_web, daemon=True)
 web_thread.start()
 
-# 2. Ждём 2 секунды чтобы веб-сервер успел стартовать
+# 2. Запускаем обновление статистики
+stats_thread = threading.Thread(target=update_bot_stats, daemon=True)
+stats_thread.start()
+
+# 3. Ждём 2 секунды
 time.sleep(2)
 
-# 3. Запускаем бота в фоне
+# 4. Запускаем бота в фоне
 print("🚀 Запуск бота в фоновом потоке...")
 bot_thread = threading.Thread(target=run_bot, daemon=True)
 bot_thread.start()
@@ -160,10 +230,9 @@ bot_thread.start()
 print("✅ Система запущена и работает в фоне!")
 print("=" * 70)
 
-# 4. Оставляем главный поток живым (Gunicorn требует этого)
+# 5. Оставляем главный поток живым
 def keep_alive():
     while True:
         time.sleep(3600)
 
-# НЕ используем if __name__ == "__main__", так как Gunicorn импортирует этот файл!
 keep_alive()
