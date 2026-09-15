@@ -319,7 +319,7 @@ async def global_top_command(interaction: discord.Interaction):
             medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
             embed.add_field(
                 name=f"{medal} {user['username']}",
-                value=f"📏 Арматура: **{user['dick_size']:.1f} см**\n💦 Дрочек: **{user['wank_count']}**",
+                value=f"📏 Арматура: **{user['dick_size']:.1f} см**\n💦 Дро🍆ек: **{user['wank_count']}**",
                 inline=False
             )
         
@@ -348,7 +348,7 @@ async def stats_command(interaction: discord.Interaction):
             color=discord.Color.blue()
         )
         embed.add_field(name=" Арматура", value=f"**{user_data['dick_size']:.1f} см**", inline=True)
-        embed.add_field(name="💦 Дрочек", value=f"**{user_data['wank_count']}**", inline=True)
+        embed.add_field(name="💦 Дро🍆ек", value=f"**{user_data['wank_count']}**", inline=True)
         embed.add_field(name="👥 Всего игроков", value=f"**{total_users}**", inline=True)
         
         await interaction.followup.send(embed=embed)
