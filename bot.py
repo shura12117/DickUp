@@ -80,7 +80,7 @@ STATUSES = [
 async def change_status():
     status = random.choice(STATUSES)
     await client.change_presence(activity=discord.Game(name=status))
-    logger.info(f" Статус изменён: {status}")
+    logger.info(f"🎮 Статус изменён: {status}")
 
 @change_status.before_loop
 async def before_change_status():
@@ -100,9 +100,9 @@ async def process_wank(interaction: discord.Interaction):
         # ПРОВЕРКА КУЛДАУНА - ИСПРАВЛЕННАЯ ЛОГИКА
         if user_data:
             last_wank_str = user_data.get('last_wank')
-            logger.info(f"🕒 last_wank из БД: {last_wank_str}")
+            logger.info(f" last_wank из БД: {last_wank_str}")
             
-            if last_wank_str:
+            if last_wank_str and last_wank_str.strip():
                 try:
                     # Парсим время из ISO формата
                     last_wank = datetime.fromisoformat(last_wank_str)
@@ -112,7 +112,7 @@ async def process_wank(interaction: discord.Interaction):
                     time_diff = (now - last_wank).total_seconds()
                     remaining_seconds = COOLDOWN_WANK - time_diff
                     
-                    logger.info(f"️ Прошло времени: {time_diff:.0f} сек, осталось: {remaining_seconds:.0f} сек")
+                    logger.info(f"⏱️ Прошло времени: {time_diff:.0f} сек, кулдаун: {COOLDOWN_WANK} сек, осталось: {remaining_seconds:.0f} сек")
                     
                     # Если ещё не прошло 15 минут
                     if remaining_seconds > 0:
@@ -161,7 +161,7 @@ async def process_up(interaction: discord.Interaction):
         if user_data:
             last_up_str = user_data.get('last_up')
             
-            if last_up_str:
+            if last_up_str and last_up_str.strip():
                 try:
                     last_up = datetime.fromisoformat(last_up_str)
                     now = datetime.now()
@@ -197,7 +197,7 @@ async def process_up(interaction: discord.Interaction):
         )
     except Exception as e:
         logger.error(f"❌ Error in /ап: {e}", exc_info=True)
-        await interaction.followup.send(f"❌ Произошла ошибка: {str(e)}", ephemeral=True)
+        await interaction.followup.send(f" Произошла ошибка: {str(e)}", ephemeral=True)
 
 
 # ==================== СОБЫТИЯ ====================
@@ -216,13 +216,13 @@ async def on_ready():
     
     logger.info("=" * 70)
     logger.info(f"✅ Бот подключён: {client.user}")
-    logger.info(f" Серверов: {len(client.guilds)}")
+    logger.info(f"📊 Серверов: {len(client.guilds)}")
     
     total_users = await db.get_total_users()
-    logger.info(f"👥 Пользователей в БД: {total_users}")
+    logger.info(f" Пользователей в БД: {total_users}")
     
     logger.info(f"⏱️ Кулдаун /дроч: {COOLDOWN_WANK // 60} мин ({COOLDOWN_WANK} сек)")
-    logger.info(f"⏱️ Кулдаун /ап: {COOLDOWN_UP // 60} мин ({COOLDOWN_UP} сек)")
+    logger.info(f"️ Кулдаун /ап: {COOLDOWN_UP // 60} мин ({COOLDOWN_UP} сек)")
     logger.info("🔄 Авто-смена статуса каждые 2 минуты запущена")
     logger.info("=" * 70)
     
@@ -287,7 +287,7 @@ async def top_command(interaction: discord.Interaction):
             medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
             embed.add_field(
                 name=f"{medal} {user['username']}",
-                value=f"📏 Арматура: **{user['dick_size']:.1f} см**\n💦 Дрочек: **{user['wank_count']}**",
+                value=f" Арматура: **{user['dick_size']:.1f} см**\n💦 Дрочек: **{user['wank_count']}**",
                 inline=False
             )
         
@@ -319,7 +319,7 @@ async def global_top_command(interaction: discord.Interaction):
             medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
             embed.add_field(
                 name=f"{medal} {user['username']}",
-                value=f" Арматура: **{user['dick_size']:.1f} см**\n💦 Дрочек: **{user['wank_count']}**",
+                value=f"📏 Арматура: **{user['dick_size']:.1f} см**\n💦 Дрочек: **{user['wank_count']}**",
                 inline=False
             )
         
@@ -347,9 +347,9 @@ async def stats_command(interaction: discord.Interaction):
             title=f"📊 Статистика {user.name}",
             color=discord.Color.blue()
         )
-        embed.add_field(name="📏 Арматура", value=f"**{user_data['dick_size']:.1f} см**", inline=True)
+        embed.add_field(name=" Арматура", value=f"**{user_data['dick_size']:.1f} см**", inline=True)
         embed.add_field(name="💦 Дрочек", value=f"**{user_data['wank_count']}**", inline=True)
-        embed.add_field(name=" Всего игроков", value=f"**{total_users}**", inline=True)
+        embed.add_field(name="👥 Всего игроков", value=f"**{total_users}**", inline=True)
         
         await interaction.followup.send(embed=embed)
     except Exception as e:
@@ -363,7 +363,7 @@ async def help_command(interaction: discord.Interaction):
     
     try:
         embed = discord.Embed(
-            title=" Членометр - Справка",
+            title="📖 Членометр - Справка",
             description=(
                 "**Команды:**\n\n"
                 f"**/дроч** (или /дрочить, /подрочить) - +1 к счёту (кулдаун **{COOLDOWN_WANK // 60} мин**)\n"
@@ -386,7 +386,7 @@ async def help_command(interaction: discord.Interaction):
 
 if __name__ == "__main__":
     try:
-        logger.info("🚀 Запуск бота...")
+        logger.info(" Запуск бота...")
         client.run(config.BOT_TOKEN)
     except discord.LoginFailure:
         logger.error("❌ Неверный токен! Проверьте BOT_TOKEN в config.py")
