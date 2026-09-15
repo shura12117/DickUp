@@ -1,6 +1,6 @@
 """
 Web сервер + API + запуск бота для Render (Членометр)
-ИСПРАВЛЕНО: Правильное получение статистики
+С ПОЛНОЙ ДИАГНОСТИКОЙ БАЗЫ ДАННЫХ
 """
 
 from flask import Flask, jsonify
@@ -10,6 +10,7 @@ import time
 import os
 import sys
 import traceback
+import sqlite3
 from datetime import datetime
 
 print("=" * 70)
@@ -26,8 +27,63 @@ bot_status = {
     'message': 'Initializing...',
     'users': 0,
     'servers': 0,
-    'last_update': None
+    'last_update': None,
+    'db_path': ''
 }
+
+# ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
+
+def check_database():
+    """Проверяет базу данных и возвращает статистику"""
+    try:
+        db_path = os.path.join(os.path.dirname(__file__), 'dickup.db')
+        bot_status['db_path'] = db_path
+        
+        print(f"📁 Путь к БД: {db_path}")
+        print(f"📁 Файл существует: {os.path.exists(db_path)}")
+        
+        if not os.path.exists(db_path):
+            print("❌ Файл БД не найден!")
+            return {'users': 0, 'error': 'Database file not found'}
+        
+        # Подключаемся к БД
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Проверяем таблицу users
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+        table = cursor.fetchone()
+        
+        if not table:
+            print("❌ Таблица users не найдена!")
+            conn.close()
+            return {'users': 0, 'error': 'Table users not found'}
+        
+        # Считаем пользователей
+        cursor.execute("SELECT COUNT(*) as count FROM users")
+        row = cursor.fetchone()
+        user_count = row['count'] if row else 0
+        
+        print(f"✅ Пользователей в БД: {user_count}")
+        
+        # Получаем всех пользователей для отладки
+        cursor.execute("SELECT user_id, username, dick_size, wank_count FROM users LIMIT 5")
+        users = cursor.fetchall()
+        
+        if users:
+            print(f"📋 Первые пользователи:")
+            for user in users:
+                print(f"   - {user['username']}: size={user['dick_size']}, wanks={user['wank_count']}")
+        
+        conn.close()
+        
+        return {'users': user_count, 'success': True}
+        
+    except Exception as e:
+        print(f"❌ Ошибка проверки БД: {e}")
+        traceback.print_exc()
+        return {'users': 0, 'error': str(e)}
 
 # ===== API ENDPOINTS =====
 
@@ -71,6 +127,14 @@ def home():
                 }}
                 .running {{ background: #43b581; }}
                 .stopped {{ background: #f04747; }}
+                .debug {{ 
+                    margin-top: 20px; 
+                    font-size: 0.9em; 
+                    color: #b9bbbe;
+                    background: rgba(0,0,0,0.3);
+                    padding: 10px;
+                    border-radius: 5px;
+                }}
                 a {{ color: #64b5f6; }}
             </style>
         </head>
@@ -79,7 +143,7 @@ def home():
                 <h1>✅ Членометр API</h1>
                 <div class="stats">
                     <p>🌐 Веб-сервер активен</p>
-                    <p> Статус бота: {status_text}</p>
+                    <p>🤖 Статус бота: {status_text}</p>
                     <p>👥 Пользователей: {bot_status.get('users', 0)}</p>
                     <p>📡 Серверов: {bot_status.get('servers', 1)}</p>
                     <p>🕒 Последнее обновление: {bot_status.get('last_update', 'Never')}</p>
@@ -87,39 +151,31 @@ def home():
                 <div class="status {status_html}">
                     {bot_status.get('message', 'Unknown')}
                 </div>
-                <p style="margin-top: 30px; color: #b9bbbe;">
-                    API Endpoints:<br>
-                    <a href="/api/stats">/api/stats</a> - Статистика<br>
-                    <a href="/api/top">/api/top</a> - Топ 10<br>
-                    <a href="/health">/health</a> - Health check
-                </p>
+                <div class="debug">
+                    <p>📁 DB Path: {bot_status.get('db_path', 'Unknown')}</p>
+                    <p>🔗 <a href="/api/stats">/api/stats</a> | <a href="/api/top">/api/top</a> | <a href="/api/debug">/api/debug</a></p>
+                </div>
             </div>
         </body>
         </html>
         """
     except Exception as e:
-        return f"<h1>Error: {str(e)}</h1>", 500
+        return f"<h1>Error: {str(e)}</h1><pre>{traceback.format_exc()}</pre>", 500
 
 @app.route('/api/stats')
 def api_stats():
     """API для сайта - отдаёт статистику"""
     try:
         print(f"[{datetime.now()}] 📊 /api/stats запрос")
-        print(f"  Текущие данные: users={bot_status.get('users')}, servers={bot_status.get('servers')}")
         
-        # Пытаемся получить актуальные данные из БД
-        try:
-            from database import Database
-            db = Database()
-            
-            # Получаем актуальное количество пользователей
-            total_users = db.get_total_users()
-            bot_status['users'] = total_users
-            
-            print(f"   Из БД: total_users={total_users}")
-            
-        except Exception as db_error:
-            print(f"  ⚠️ Ошибка чтения БД: {db_error}")
+        # Проверяем БД
+        db_check = check_database()
+        
+        # Обновляем статус
+        bot_status['users'] = db_check.get('users', 0)
+        bot_status['last_update'] = datetime.now().strftime('%H:%M:%S')
+        
+        print(f"  Отправляем: users={bot_status['users']}, servers={bot_status.get('servers', 0)}")
         
         return jsonify({
             'success': True,
@@ -128,6 +184,8 @@ def api_stats():
             'bot_running': bool(bot_status.get('running', False)),
             'message': str(bot_status.get('message', '')),
             'last_update': str(bot_status.get('last_update', '')),
+            'db_path': bot_status.get('db_path', ''),
+            'db_error': db_check.get('error', ''),
             'timestamp': time.time()
         })
     except Exception as e:
@@ -146,21 +204,33 @@ def api_top():
     try:
         print(f"[{datetime.now()}] 📊 /api/top запрос")
         
-        # Пытаемся получить данные из БД
+        # Проверяем БД
+        db_check = check_database()
+        
+        if db_check.get('users', 0) == 0:
+            print("  ⚠️ БД пустая, возвращаем пустые топы")
+            return jsonify({
+                'success': True,
+                'top_size': [],
+                'top_wanks': [],
+                'note': 'Database is empty'
+            })
+        
+        # Пытаемся получить данные
         try:
             from database import Database
             db = Database()
             
             # Топ по размеру
             top_size = db.get_global_top(10)
-            print(f"   Top size: {len(top_size) if top_size else 0} записей")
+            print(f"  Top size: {len(top_size) if top_size else 0} записей")
             
             # Топ по активности
             top_wanks = db.get_global_top_by_wanks(10)
-            print(f"  📊 Top wanks: {len(top_wanks) if top_wanks else 0} записей")
+            print(f"  Top wanks: {len(top_wanks) if top_wanks else 0} записей")
             
             if top_size:
-                print(f"   Первый в топе: {top_size[0]}")
+                print(f"  Первый в топе: {top_size[0]}")
             
         except Exception as db_error:
             print(f"  ⚠️ Ошибка БД: {db_error}")
@@ -181,6 +251,51 @@ def api_top():
             'error': str(e),
             'top_size': [],
             'top_wanks': []
+        }), 500
+
+@app.route('/api/debug')
+def api_debug():
+    """API для отладки - показывает полную информацию о БД"""
+    try:
+        print(f"[{datetime.now()}] 🔍 /api/debug запрос")
+        
+        db_check = check_database()
+        
+        # Получаем всех пользователей
+        try:
+            from database import Database
+            db = Database()
+            
+            conn = sqlite3.connect(bot_status.get('db_path', 'dickup.db'))
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT * FROM users")
+            all_users = [dict(row) for row in cursor.fetchall()]
+            
+            conn.close()
+            
+        except Exception as e:
+            all_users = []
+            print(f"  Ошибка получения пользователей: {e}")
+        
+        return jsonify({
+            'success': True,
+            'database': db_check,
+            'bot_status': {
+                'running': bot_status.get('running'),
+                'users': bot_status.get('users'),
+                'servers': bot_status.get('servers'),
+                'message': bot_status.get('message'),
+                'db_path': bot_status.get('db_path')
+            },
+            'all_users': all_users,
+            'total_users_in_db': len(all_users)
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
         }), 500
 
 @app.route('/health')
@@ -209,25 +324,18 @@ def update_bot_stats():
         try:
             print(f"[{datetime.now()}] 🔄 Обновление статистики...")
             
-            # Импортируем базу
-            try:
-                from database import Database
-                db = Database()
-                
-                # Обновляем статистику
-                total_users = db.get_total_users()
-                bot_status['users'] = total_users
-                bot_status['servers'] = 2  # Пока хардкод (бот на 2 серверах)
-                bot_status['last_update'] = datetime.now().strftime('%H:%M:%S')
-                
-                print(f"  ✅ Статистика: users={total_users}, servers=2")
-                
-            except Exception as db_error:
-                print(f"  ⚠️ Ошибка БД: {db_error}")
-                traceback.print_exc()
-                
+            # Проверяем БД
+            db_check = check_database()
+            
+            bot_status['users'] = db_check.get('users', 0)
+            bot_status['servers'] = 2  # Хардкод (бот на 2 серверах)
+            bot_status['last_update'] = datetime.now().strftime('%H:%M:%S')
+            
+            print(f"  ✅ Статистика: users={bot_status['users']}, servers=2")
+            
         except Exception as e:
-            print(f"️ Ошибка в update_bot_stats: {e}")
+            print(f"⚠️ Ошибка в update_bot_stats: {e}")
+            traceback.print_exc()
         
         time.sleep(60)  # Обновляем каждую минуту
 
@@ -237,7 +345,7 @@ def run_bot():
     
     try:
         print("=" * 70)
-        print("🤖 ЗАПУСК DISCORD БОТА (ЧЛЕНОМЕТР)...")
+        print(" ЗАПУСК DISCORD БОТА (ЧЛЕНОМЕТР)...")
         print("=" * 70)
         
         bot_status['started_at'] = time.time()
@@ -284,7 +392,7 @@ def run_web():
         traceback.print_exc()
 
 # ===== ЗАПУСК ПРИ ИМПОРТЕ МОДУЛЯ =====
-print(" Инициализация системы...")
+print("📦 Инициализация системы...")
 
 try:
     # 1. Запускаем веб-сервер в фоне
