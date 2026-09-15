@@ -1,8 +1,9 @@
 """
 Web сервер + API + запуск бота для Render (Членометр)
+С ДОБАВЛЕННЫМИ CORS ЗАГОЛОВКАМИ
 """
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, make_response
 import threading
 import time
 import os
@@ -11,7 +12,7 @@ import traceback
 from datetime import datetime
 
 print("=" * 70)
-print("🚀 ЧЛЕНОМЕТР - ЗАПУСК ПРИ ИМПОРТЕ...")
+print(" ЧЛЕНОМЕТР - ЗАПУСК ПРИ ИМПОРТЕ...")
 print("=" * 70)
 
 app = Flask(__name__)
@@ -24,6 +25,14 @@ bot_status = {
     'users': 0,
     'servers': 0
 }
+
+# ===== CORS ЗАГОЛОВКИ =====
+@app.after_request
+def add_cors_headers(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
 
 # ===== API ENDPOINTS ДЛЯ САЙТА =====
 
@@ -81,8 +90,10 @@ def home():
                 {bot_status['message']}
             </div>
             <p style="margin-top: 30px; color: #b9bbbe;">
-                Сайт: dickuplolka.gt.tc<br>
-                API: <a href="/api/stats" style="color: #64b5f6;">/api/stats</a>
+                API Endpoints:<br>
+                <a href="/api/stats" style="color: #64b5f6;">/api/stats</a> - Статистика<br>
+                <a href="/api/top" style="color: #64b5f6;">/api/top</a> - Топ 10<br>
+                <a href="/health" style="color: #64b5f6;">/health</a> - Health check
             </p>
         </div>
     </body>
@@ -92,27 +103,32 @@ def home():
 @app.route('/api/stats')
 def api_stats():
     """API для сайта - отдаёт статистику"""
+    print(f"📊 /api/stats запрос - users: {bot_status['users']}, servers: {bot_status['servers']}")
     return jsonify({
         'success': True,
         'users': bot_status['users'],
         'servers': bot_status['servers'],
         'bot_running': bot_status['running'],
-        'message': bot_status['message']
+        'message': bot_status['message'],
+        'timestamp': time.time()
     })
 
 @app.route('/api/top')
 def api_top():
     """API для сайта - отдаёт топ 10"""
     try:
+        print("📊 /api/top запрос")
         # Импортируем базу данных
         from database import Database
         db = Database()
         
         # Топ по размеру
         top_size = db.get_global_top(10)
+        print(f"  Top size: {len(top_size)} записей")
         
         # Топ по активности
         top_wanks = db.get_global_top_by_wanks(10)
+        print(f"  Top wanks: {len(top_wanks)} записей")
         
         return jsonify({
             'success': True,
@@ -120,6 +136,8 @@ def api_top():
             'top_wanks': top_wanks
         })
     except Exception as e:
+        print(f"  ❌ Ошибка: {e}")
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': str(e),
@@ -134,7 +152,8 @@ def health():
         'bot_running': bot_status['running'],
         'users': bot_status['users'],
         'servers': bot_status['servers'],
-        'message': bot_status['message']
+        'message': bot_status['message'],
+        'timestamp': time.time()
     })
 
 # ===== ЗАПУСК БОТА =====
@@ -154,6 +173,8 @@ def update_bot_stats():
                 bot_status['users'] = db.get_total_users()
                 # Сервера считаем из client.guilds (но это асинхронно, поэтому пока заглушка)
                 bot_status['servers'] = 1  # TODO: получить из бота
+                
+                print(f" Статистика обновлена: users={bot_status['users']}, servers={bot_status['servers']}")
                 
         except Exception as e:
             print(f"⚠️ Ошибка обновления статистики: {e}")
