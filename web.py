@@ -1,6 +1,6 @@
 """
 Web сервер + API + запуск бота для Render (Членометр)
-МАКСИМАЛЬНО УСТОЙЧИВЫЙ КОД
+ИСПРАВЛЕНО: Правильное получение статистики
 """
 
 from flask import Flask, jsonify
@@ -13,11 +13,11 @@ import traceback
 from datetime import datetime
 
 print("=" * 70)
-print(" ЧЛЕНОМЕТР - ЗАПУСК ПРИ ИМПОРТЕ...")
+print("🚀 ЧЛЕНОМЕТР - ЗАПУСК ПРИ ИМПОРТЕ...")
 print("=" * 70)
 
 app = Flask(__name__)
-CORS(app)  # Разрешаем CORS для всех роутов
+CORS(app)
 
 # Глобальный статус бота
 bot_status = {
@@ -25,7 +25,8 @@ bot_status = {
     'started_at': None,
     'message': 'Initializing...',
     'users': 0,
-    'servers': 0
+    'servers': 0,
+    'last_update': None
 }
 
 # ===== API ENDPOINTS =====
@@ -33,8 +34,8 @@ bot_status = {
 @app.route('/')
 def home():
     try:
-        status_html = 'running' if bot_status['running'] else 'stopped'
-        status_text = 'Онлайн ✅' if bot_status['running'] else 'Подключение...'
+        status_html = 'running' if bot_status.get('running') else 'stopped'
+        status_text = 'Онлайн ✅' if bot_status.get('running') else 'Подключение...'
         
         return f"""
         <html>
@@ -78,9 +79,10 @@ def home():
                 <h1>✅ Членометр API</h1>
                 <div class="stats">
                     <p>🌐 Веб-сервер активен</p>
-                    <p>🤖 Статус бота: {status_text}</p>
+                    <p> Статус бота: {status_text}</p>
                     <p>👥 Пользователей: {bot_status.get('users', 0)}</p>
                     <p>📡 Серверов: {bot_status.get('servers', 1)}</p>
+                    <p>🕒 Последнее обновление: {bot_status.get('last_update', 'Never')}</p>
                 </div>
                 <div class="status {status_html}">
                     {bot_status.get('message', 'Unknown')}
@@ -96,14 +98,28 @@ def home():
         </html>
         """
     except Exception as e:
-        return f"<h1>Error rendering page: {str(e)}</h1>", 500
+        return f"<h1>Error: {str(e)}</h1>", 500
 
 @app.route('/api/stats')
 def api_stats():
     """API для сайта - отдаёт статистику"""
     try:
         print(f"[{datetime.now()}] 📊 /api/stats запрос")
-        print(f"  bot_status: {bot_status}")
+        print(f"  Текущие данные: users={bot_status.get('users')}, servers={bot_status.get('servers')}")
+        
+        # Пытаемся получить актуальные данные из БД
+        try:
+            from database import Database
+            db = Database()
+            
+            # Получаем актуальное количество пользователей
+            total_users = db.get_total_users()
+            bot_status['users'] = total_users
+            
+            print(f"   Из БД: total_users={total_users}")
+            
+        except Exception as db_error:
+            print(f"  ⚠️ Ошибка чтения БД: {db_error}")
         
         return jsonify({
             'success': True,
@@ -111,6 +127,7 @@ def api_stats():
             'servers': int(bot_status.get('servers', 1)),
             'bot_running': bool(bot_status.get('running', False)),
             'message': str(bot_status.get('message', '')),
+            'last_update': str(bot_status.get('last_update', '')),
             'timestamp': time.time()
         })
     except Exception as e:
@@ -129,21 +146,25 @@ def api_top():
     try:
         print(f"[{datetime.now()}] 📊 /api/top запрос")
         
-        # Пытаемся импортировать и получить данные
+        # Пытаемся получить данные из БД
         try:
             from database import Database
             db = Database()
             
             # Топ по размеру
             top_size = db.get_global_top(10)
-            print(f"  Top size: {len(top_size) if top_size else 0} записей")
+            print(f"   Top size: {len(top_size) if top_size else 0} записей")
             
             # Топ по активности
             top_wanks = db.get_global_top_by_wanks(10)
-            print(f"  Top wanks: {len(top_wanks) if top_wanks else 0} записей")
+            print(f"  📊 Top wanks: {len(top_wanks) if top_wanks else 0} записей")
+            
+            if top_size:
+                print(f"   Первый в топе: {top_size[0]}")
             
         except Exception as db_error:
             print(f"  ⚠️ Ошибка БД: {db_error}")
+            traceback.print_exc()
             top_size = []
             top_wanks = []
         
@@ -182,22 +203,28 @@ def update_bot_stats():
     """Периодически обновляет статистику бота"""
     global bot_status
     
+    print("🔄 Запущена фоновая задача обновления статистики...")
+    
     while True:
         try:
-            if bot_status.get('running'):
-                # Импортируем базу
-                try:
-                    from database import Database
-                    db = Database()
-                    
-                    # Обновляем статистику
-                    bot_status['users'] = db.get_total_users()
-                    bot_status['servers'] = 1  # Пока заглушка
-                    
-                    print(f"[{datetime.now()}] Статистика: users={bot_status['users']}, servers={bot_status['servers']}")
-                    
-                except Exception as e:
-                    print(f"⚠️ Ошибка обновления статистики: {e}")
+            print(f"[{datetime.now()}] 🔄 Обновление статистики...")
+            
+            # Импортируем базу
+            try:
+                from database import Database
+                db = Database()
+                
+                # Обновляем статистику
+                total_users = db.get_total_users()
+                bot_status['users'] = total_users
+                bot_status['servers'] = 2  # Пока хардкод (бот на 2 серверах)
+                bot_status['last_update'] = datetime.now().strftime('%H:%M:%S')
+                
+                print(f"  ✅ Статистика: users={total_users}, servers=2")
+                
+            except Exception as db_error:
+                print(f"  ⚠️ Ошибка БД: {db_error}")
+                traceback.print_exc()
                 
         except Exception as e:
             print(f"️ Ошибка в update_bot_stats: {e}")
@@ -253,11 +280,11 @@ def run_web():
     try:
         app.run(host='0.0.0.0', port=8080, debug=False, threaded=True)
     except Exception as e:
-        print(f" Ошибка запуска веб-сервера: {e}")
+        print(f"❌ Ошибка запуска веб-сервера: {e}")
         traceback.print_exc()
 
 # ===== ЗАПУСК ПРИ ИМПОРТЕ МОДУЛЯ =====
-print("📦 Инициализация системы...")
+print(" Инициализация системы...")
 
 try:
     # 1. Запускаем веб-сервер в фоне
