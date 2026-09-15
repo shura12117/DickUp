@@ -1,6 +1,6 @@
 """
 Web сервер + API + запуск бота для Render (Членометр)
-С ПОЛНОЙ ДИАГНОСТИКОЙ БАЗЫ ДАННЫХ
+ИСПРАВЛЕНО: Правильное получение количества серверов
 """
 
 from flask import Flask, jsonify
@@ -20,7 +20,8 @@ print("=" * 70)
 app = Flask(__name__)
 CORS(app)
 
-# Глобальный статус бота
+# Глобальные переменные для обмена данными между ботом и веб-сервером
+bot_client = None  # Ссылка на клиента Discord
 bot_status = {
     'running': False,
     'started_at': None,
@@ -38,9 +39,6 @@ def check_database():
     try:
         db_path = os.path.join(os.path.dirname(__file__), 'dickup.db')
         bot_status['db_path'] = db_path
-        
-        print(f"📁 Путь к БД: {db_path}")
-        print(f"📁 Файл существует: {os.path.exists(db_path)}")
         
         if not os.path.exists(db_path):
             print("❌ Файл БД не найден!")
@@ -67,23 +65,28 @@ def check_database():
         
         print(f"✅ Пользователей в БД: {user_count}")
         
-        # Получаем всех пользователей для отладки
-        cursor.execute("SELECT user_id, username, dick_size, wank_count FROM users LIMIT 5")
-        users = cursor.fetchall()
-        
-        if users:
-            print(f"📋 Первые пользователи:")
-            for user in users:
-                print(f"   - {user['username']}: size={user['dick_size']}, wanks={user['wank_count']}")
-        
         conn.close()
-        
         return {'users': user_count, 'success': True}
         
     except Exception as e:
         print(f"❌ Ошибка проверки БД: {e}")
-        traceback.print_exc()
         return {'users': 0, 'error': str(e)}
+
+def get_server_count():
+    """Получает реальное количество серверов из бота"""
+    global bot_client
+    
+    try:
+        if bot_client and hasattr(bot_client, 'guilds'):
+            count = len(bot_client.guilds)
+            print(f"📡 Серверов в боте: {count}")
+            return count
+        else:
+            print("⚠️ bot_client не доступен")
+            return bot_status.get('servers', 0)
+    except Exception as e:
+        print(f"❌ Ошибка получения серверов: {e}")
+        return bot_status.get('servers', 0)
 
 # ===== API ENDPOINTS =====
 
@@ -145,7 +148,7 @@ def home():
                     <p>🌐 Веб-сервер активен</p>
                     <p>🤖 Статус бота: {status_text}</p>
                     <p>👥 Пользователей: {bot_status.get('users', 0)}</p>
-                    <p>📡 Серверов: {bot_status.get('servers', 1)}</p>
+                    <p>📡 Серверов: {bot_status.get('servers', 0)}</p>
                     <p>🕒 Последнее обновление: {bot_status.get('last_update', 'Never')}</p>
                 </div>
                 <div class="status {status_html}">
@@ -171,21 +174,24 @@ def api_stats():
         # Проверяем БД
         db_check = check_database()
         
+        # Получаем реальное количество серверов
+        server_count = get_server_count()
+        
         # Обновляем статус
         bot_status['users'] = db_check.get('users', 0)
+        bot_status['servers'] = server_count
         bot_status['last_update'] = datetime.now().strftime('%H:%M:%S')
         
-        print(f"  Отправляем: users={bot_status['users']}, servers={bot_status.get('servers', 0)}")
+        print(f"  Отправляем: users={bot_status['users']}, servers={bot_status['servers']}")
         
         return jsonify({
             'success': True,
             'users': int(bot_status.get('users', 0)),
-            'servers': int(bot_status.get('servers', 1)),
+            'servers': int(bot_status.get('servers', 0)),
             'bot_running': bool(bot_status.get('running', False)),
             'message': str(bot_status.get('message', '')),
             'last_update': str(bot_status.get('last_update', '')),
             'db_path': bot_status.get('db_path', ''),
-            'db_error': db_check.get('error', ''),
             'timestamp': time.time()
         })
     except Exception as e:
@@ -229,12 +235,8 @@ def api_top():
             top_wanks = db.get_global_top_by_wanks(10)
             print(f"  Top wanks: {len(top_wanks) if top_wanks else 0} записей")
             
-            if top_size:
-                print(f"  Первый в топе: {top_size[0]}")
-            
         except Exception as db_error:
             print(f"  ⚠️ Ошибка БД: {db_error}")
-            traceback.print_exc()
             top_size = []
             top_wanks = []
         
@@ -255,11 +257,12 @@ def api_top():
 
 @app.route('/api/debug')
 def api_debug():
-    """API для отладки - показывает полную информацию о БД"""
+    """API для отладки"""
     try:
         print(f"[{datetime.now()}] 🔍 /api/debug запрос")
         
         db_check = check_database()
+        server_count = get_server_count()
         
         # Получаем всех пользователей
         try:
@@ -285,12 +288,13 @@ def api_debug():
             'bot_status': {
                 'running': bot_status.get('running'),
                 'users': bot_status.get('users'),
-                'servers': bot_status.get('servers'),
+                'servers': server_count,
                 'message': bot_status.get('message'),
                 'db_path': bot_status.get('db_path')
             },
             'all_users': all_users,
-            'total_users_in_db': len(all_users)
+            'total_users_in_db': len(all_users),
+            'real_server_count': server_count
         })
     except Exception as e:
         return jsonify({
@@ -305,7 +309,7 @@ def health():
             'status': 'ok' if bot_status.get('running') else 'bot_not_running',
             'bot_running': bool(bot_status.get('running', False)),
             'users': int(bot_status.get('users', 0)),
-            'servers': int(bot_status.get('servers', 1)),
+            'servers': int(get_server_count()),
             'message': str(bot_status.get('message', '')),
             'timestamp': time.time()
         })
@@ -327,25 +331,28 @@ def update_bot_stats():
             # Проверяем БД
             db_check = check_database()
             
+            # Получаем реальное количество серверов
+            server_count = get_server_count()
+            
             bot_status['users'] = db_check.get('users', 0)
-            bot_status['servers'] = 2  # Хардкод (бот на 2 серверах)
+            bot_status['servers'] = server_count
             bot_status['last_update'] = datetime.now().strftime('%H:%M:%S')
             
-            print(f"  ✅ Статистика: users={bot_status['users']}, servers=2")
+            print(f"  ✅ Статистика: users={bot_status['users']}, servers={server_count}")
             
         except Exception as e:
-            print(f"⚠️ Ошибка в update_bot_stats: {e}")
+            print(f"️ Ошибка в update_bot_stats: {e}")
             traceback.print_exc()
         
         time.sleep(60)  # Обновляем каждую минуту
 
 def run_bot():
     """Запускает бота в отдельном потоке"""
-    global bot_status
+    global bot_status, bot_client
     
     try:
         print("=" * 70)
-        print(" ЗАПУСК DISCORD БОТА (ЧЛЕНОМЕТР)...")
+        print("🤖 ЗАПУСК DISCORD БОТА (ЧЛЕНОМЕТР)...")
         print("=" * 70)
         
         bot_status['started_at'] = time.time()
@@ -355,13 +362,17 @@ def run_bot():
         import bot as bot_module
         print("✅ Модуль bot.py успешно импортирован")
         
+        # Сохраняем ссылку на client
+        bot_client = bot_module.client
+        print(f"🔗 bot_client сохранён: {bot_client}")
+        
         # Проверяем токен
         token = bot_module.config.BOT_TOKEN
         if not token:
             raise Exception("BOT_TOKEN пуст в config.py!")
         
         print(f"🔑 Токен найден (длина: {len(token)})")
-        print("🔗 Подключение к Lolka Gateway...")
+        print(" Подключение к Lolka Gateway...")
         
         bot_status['message'] = 'Connecting to Lolka...'
         bot_status['running'] = True
@@ -392,7 +403,7 @@ def run_web():
         traceback.print_exc()
 
 # ===== ЗАПУСК ПРИ ИМПОРТЕ МОДУЛЯ =====
-print("📦 Инициализация системы...")
+print(" Инициализация системы...")
 
 try:
     # 1. Запускаем веб-сервер в фоне
