@@ -1,6 +1,6 @@
 """
 Web сервер + API + запуск бота для Render (Членометр)
-ИСПРАВЛЕНО: Правильное получение количества серверов
+ОБНОВЛЕНИЕ СТАТИСТИКИ КАЖДЫЕ 5 МИНУТ
 """
 
 from flask import Flask, jsonify
@@ -79,7 +79,7 @@ def get_server_count():
     try:
         if bot_client and hasattr(bot_client, 'guilds'):
             count = len(bot_client.guilds)
-            print(f"📡 Серверов в боте: {count}")
+            print(f" Серверов в боте: {count}")
             return count
         else:
             print("⚠️ bot_client не доступен")
@@ -146,7 +146,7 @@ def home():
                 <h1>✅ Членометр API</h1>
                 <div class="stats">
                     <p>🌐 Веб-сервер активен</p>
-                    <p>🤖 Статус бота: {status_text}</p>
+                    <p> Статус бота: {status_text}</p>
                     <p>👥 Пользователей: {bot_status.get('users', 0)}</p>
                     <p>📡 Серверов: {bot_status.get('servers', 0)}</p>
                     <p>🕒 Последнее обновление: {bot_status.get('last_update', 'Never')}</p>
@@ -319,14 +319,14 @@ def health():
 # ===== ФОНОВЫЕ ЗАДАЧИ =====
 
 def update_bot_stats():
-    """Периодически обновляет статистику бота"""
+    """Периодически обновляет статистику бота (каждые 5 минут)"""
     global bot_status
     
-    print("🔄 Запущена фоновая задача обновления статистики...")
+    print("🔄 Запущена фоновая задача обновления статистики (каждые 5 минут)...")
     
     while True:
         try:
-            print(f"[{datetime.now()}] 🔄 Обновление статистики...")
+            print(f"\n[{datetime.now()}] 🔄 Обновление статистики...")
             
             # Проверяем БД
             db_check = check_database()
@@ -338,13 +338,18 @@ def update_bot_stats():
             bot_status['servers'] = server_count
             bot_status['last_update'] = datetime.now().strftime('%H:%M:%S')
             
-            print(f"  ✅ Статистика: users={bot_status['users']}, servers={server_count}")
+            print(f"  ✅ Статистика обновлена:")
+            print(f"     👥 Пользователей: {bot_status['users']}")
+            print(f"     📡 Серверов: {server_count}")
+            print(f"     🕒 Время: {bot_status['last_update']}")
             
         except Exception as e:
-            print(f"️ Ошибка в update_bot_stats: {e}")
+            print(f"⚠️ Ошибка в update_bot_stats: {e}")
             traceback.print_exc()
         
-        time.sleep(60)  # Обновляем каждую минуту
+        # Ждём 5 минут (300 секунд) перед следующим обновлением
+        print(f"  ⏳ Следующее обновление через 5 минут...\n")
+        time.sleep(300)  # 300 секунд = 5 минут
 
 def run_bot():
     """Запускает бота в отдельном потоке"""
@@ -372,7 +377,7 @@ def run_bot():
             raise Exception("BOT_TOKEN пуст в config.py!")
         
         print(f"🔑 Токен найден (длина: {len(token)})")
-        print(" Подключение к Lolka Gateway...")
+        print("🔗 Подключение к Lolka Gateway...")
         
         bot_status['message'] = 'Connecting to Lolka...'
         bot_status['running'] = True
