@@ -238,19 +238,19 @@ async def on_ready():
 
 # ==================== КОМАНДЫ ====================
 
-@client.tree.command(name="дроч", description="Увеличить счётчик дрочек на 1")
+@client.tree.command(name="дроч", description="Увеличить счётчик дро🍆ек на 1")
 async def wank_command(interaction: discord.Interaction):
     await interaction.response.defer()
     await process_wank(interaction)
 
 
-@client.tree.command(name="дрочить", description="Увеличить счётчик дрочек на 1")
+@client.tree.command(name="дрочить", description="Увеличить счётчик дро🍆ек на 1")
 async def wank2_command(interaction: discord.Interaction):
     await interaction.response.defer()
     await process_wank(interaction)
 
 
-@client.tree.command(name="подрочить", description="Увеличить счётчик дрочек на 1")
+@client.tree.command(name="подрочить", description="Увеличить счётчик дро🍆ек на 1")
 async def wank3_command(interaction: discord.Interaction):
     await interaction.response.defer()
     await process_wank(interaction)
@@ -287,7 +287,7 @@ async def top_command(interaction: discord.Interaction):
             medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
             embed.add_field(
                 name=f"{medal} {user['username']}",
-                value=f" Арматура: **{user['dick_size']:.1f} см**\n💦 Дрочек: **{user['wank_count']}**",
+                value=f" Арматура: **{user['dick_size']:.1f} см**\n💦 Дро🍆ек: **{user['wank_count']}**",
                 inline=False
             )
         
