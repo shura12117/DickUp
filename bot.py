@@ -141,8 +141,8 @@ async def process_wank(interaction: discord.Interaction):
             )
         
         await interaction.followup.send(
-            f"**{user.name}**, вы успешно подрочили! 💦\n"
-            f"Ваше кол-во дрочек: **{count}**"
+            f"**{user.name}**, подро🍆ил 😈\n"
+            f"Дро🍆ек всего - {count}**"
         )
         
     except Exception as e:
