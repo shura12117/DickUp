@@ -139,7 +139,7 @@ async def process_wank(interaction: discord.Interaction):
         
         await interaction.followup.send(
             f"**{user.name}**, подро🍆ил 😈\n"
-            f"Дро🍆ек всего (глобально) - **{count}**"
+            f"Дро🍆ек всего - **{count}**"
         )
         
     except Exception as e:
@@ -194,7 +194,7 @@ async def process_up(interaction: discord.Interaction):
         
         await interaction.followup.send(
             f"**{user.name}**, вы успешно вырастили свою арматуру на **{growth} см**! 📏\n"
-            f"Ваша арматура (глобально): **{new_size:.1f} см**"
+            f"Ваша арматура: **{new_size:.1f} см**"
         )
     except Exception as e:
         logger.error(f"❌ Error in /ап: {e}", exc_info=True)
@@ -240,19 +240,19 @@ async def on_ready():
 
 # ==================== КОМАНДЫ ====================
 
-@client.tree.command(name="дроч", description="Увеличить счётчик дрочек")
+@client.tree.command(name="дроч", description="Увеличить счётчик дро🍆ек")
 async def wank_command(interaction: discord.Interaction):
     await interaction.response.defer()
     await process_wank(interaction)
 
 
-@client.tree.command(name="дрочить", description="Увеличить счётчик дрочек")
+@client.tree.command(name="дрочить", description="Увеличить счётчик дро🍆ек")
 async def wank2_command(interaction: discord.Interaction):
     await interaction.response.defer()
     await process_wank(interaction)
 
 
-@client.tree.command(name="подрочить", description="Увеличить счётчик дрочек")
+@client.tree.command(name="подрочить", description="Увеличить счётчик дро🍆ек")
 async def wank3_command(interaction: discord.Interaction):
     await interaction.response.defer()
     await process_wank(interaction)
