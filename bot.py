@@ -80,7 +80,7 @@ STATUSES = [
 async def change_status():
     status = random.choice(STATUSES)
     await client.change_presence(activity=discord.Game(name=status))
-    logger.info(f"🎮 Статус изменён: {status}")
+    logger.info(f" Статус изменён: {status}")
 
 @change_status.before_loop
 async def before_change_status():
@@ -94,13 +94,11 @@ async def process_wank(interaction: discord.Interaction):
     user_id = str(user.id)
     
     try:
-        logger.info(f"🔍 process_wank вызван для user_id={user_id}, name={user.name}, guild={interaction.guild.name if interaction.guild else 'DM'}")
-        
         user_data = await db.get_user(user_id, user.name)
         
+        # ПРОВЕРКА КУЛДАУНА
         if user_data:
             last_wank_str = user_data.get('last_wank')
-            logger.info(f"📝 last_wank из БД: '{last_wank_str}'")
             
             if last_wank_str and str(last_wank_str).strip():
                 try:
@@ -109,37 +107,36 @@ async def process_wank(interaction: discord.Interaction):
                     time_diff = (now - last_wank).total_seconds()
                     remaining_seconds = COOLDOWN_WANK - time_diff
                     
-                    logger.info(f"⏱️ Прошло: {time_diff:.0f} сек, кулдаун: {COOLDOWN_WANK} сек, осталось: {remaining_seconds:.0f} сек")
-                    
                     if remaining_seconds > 0:
                         minutes = int(remaining_seconds // 60)
                         seconds = int(remaining_seconds % 60)
-                        logger.info(f"⏸️ Кулдаун активен, выполнение отменено.")
                         return await interaction.followup.send(
                             f"⏱️ Кулдаун! Подожди ещё **{minutes} мин {seconds} сек**.", 
                             ephemeral=True
                         )
                 except Exception as e:
-                    logger.error(f"⚠️ Ошибка парсинга времени: {e}. Продолжаем без кулдауна.")
+                    logger.error(f"⚠️ Ошибка парсинга времени: {e}")
         
-        logger.info(f"➕ Выполняем add_wank для {user_id}")
-        count = await db.add_wank(user_id, user.name)
-        logger.info(f"✅ add_wank вернул count={count}")
-        
+        # Увеличиваем счётчик
+        await db.add_wank(user_id, user.name)
         await db.update_username(user_id, user.name)
         
-        if interaction.guild:
-            user_data = await db.get_user(user_id, user.name)
+        # Получаем АКТУАЛЬНЫЕ данные сразу после обновления
+        updated_user_data = await db.get_user(user_id, user.name)
+        current_count = updated_user_data['wank_count'] if updated_user_data else 1
+        
+        # Обновляем статистику сервера
+        if interaction.guild and updated_user_data:
             await db.update_server_stats(
                 str(interaction.guild.id),
                 user_id,
-                user_data.get('dick_size', 0) if user_data else 0,
-                count
+                updated_user_data.get('dick_size', 0),
+                current_count
             )
         
         await interaction.followup.send(
             f"**{user.name}**, подро🍆ил 😈\n"
-            f"Дро🍆ек всего - **{count}**"
+            f"Дро🍆ек всего - **{current_count}**"
         )
         
     except Exception as e:
@@ -152,12 +149,11 @@ async def process_up(interaction: discord.Interaction):
     user_id = str(user.id)
     
     try:
-        logger.info(f"🔍 process_up вызван для user_id={user_id}, name={user.name}")
         user_data = await db.get_user(user_id, user.name)
         
+        # ПРОВЕРКА КУЛДАУНА
         if user_data:
             last_up_str = user_data.get('last_up')
-            logger.info(f"📝 last_up из БД: '{last_up_str}'")
             
             if last_up_str and str(last_up_str).strip():
                 try:
@@ -169,32 +165,33 @@ async def process_up(interaction: discord.Interaction):
                     if remaining_seconds > 0:
                         minutes = int(remaining_seconds // 60)
                         seconds = int(remaining_seconds % 60)
-                        logger.info(f"⏸️ Кулдаун /ап активен, осталось: {remaining_seconds:.0f} сек")
                         return await interaction.followup.send(
                             f"⏱️ Кулдаун! Подожди ещё **{minutes} мин {seconds} сек**.", 
                             ephemeral=True
                         )
                 except Exception as e:
-                    logger.error(f"⚠️ Ошибка парсинга времени: {e}. Продолжаем без кулдауна.")
+                    logger.error(f"⚠️ Ошибка парсинга времени: {e}")
         
         growth = random.randint(1, 10)
-        logger.info(f"➕ Выполняем add_size для {user_id}, growth={growth}")
-        new_size = await db.add_size(user_id, growth, user.name)
-        logger.info(f"✅ add_size вернул new_size={new_size}")
-        
+        await db.add_size(user_id, growth, user.name)
         await db.update_username(user_id, user.name)
         
-        if interaction.guild:
+        # Получаем АКТУАЛЬНЫЕ данные сразу после обновления
+        updated_user_data = await db.get_user(user_id, user.name)
+        current_size = updated_user_data['dick_size'] if updated_user_data else growth
+        
+        # Обновляем статистику сервера
+        if interaction.guild and updated_user_data:
             await db.update_server_stats(
                 str(interaction.guild.id),
                 user_id,
-                new_size,
-                user_data.get('wank_count', 0) if user_data else 0
+                current_size,
+                updated_user_data.get('wank_count', 0)
             )
         
         await interaction.followup.send(
             f"**{user.name}**, вы успешно вырастили свою арматуру на **{growth} см**! 📏\n"
-            f"Ваша арматура: **{new_size:.1f} см**"
+            f"Ваша арматура: **{current_size:.1f} см**"
         )
     except Exception as e:
         logger.error(f"❌ Error in /ап: {e}", exc_info=True)
@@ -220,11 +217,11 @@ async def on_ready():
     logger.info(f"📊 Серверов: {len(client.guilds)}")
     
     total_users = await db.get_total_users()
-    logger.info(f"👥 Пользователей в БД: {total_users}")
+    logger.info(f" Пользователей в БД: {total_users}")
     
     logger.info(f"⏱️ Кулдаун /дроч: {COOLDOWN_WANK // 60} мин ({COOLDOWN_WANK} сек)")
-    logger.info(f"⏱️ Кулдаун /ап: {COOLDOWN_UP // 60} мин ({COOLDOWN_UP} сек)")
-    logger.info("💾 Статистика и кулдауны привязаны к ID пользователя")
+    logger.info(f"️ Кулдаун /ап: {COOLDOWN_UP // 60} мин ({COOLDOWN_UP} сек)")
+    logger.info(" Статистика и кулдауны привязаны к ID пользователя")
     logger.info("🔄 Авто-смена статуса каждые 2 минуты запущена")
     logger.info("=" * 70)
     
@@ -235,7 +232,7 @@ async def on_ready():
         for cmd in synced:
             logger.info(f"   - /{cmd.name}")
     except Exception as e:
-        logger.error(f"❌ Ошибка синхронизации: {e}")
+        logger.error(f" Ошибка синхронизации: {e}")
 
 
 # ==================== КОМАНДЫ ====================
@@ -252,7 +249,7 @@ async def wank2_command(interaction: discord.Interaction):
     await process_wank(interaction)
 
 
-@client.tree.command(name="подрочить", description="Увеличить счётчик дро🍆ек")
+@client.tree.command(name="подрочить", description="Увеличить счётчик дроек")
 async def wank3_command(interaction: discord.Interaction):
     await interaction.response.defer()
     await process_wank(interaction)
@@ -273,12 +270,10 @@ async def top_command(interaction: discord.Interaction):
         return await interaction.followup.send("❌ Команда работает только на сервере", ephemeral=True)
     
     try:
-        logger.info(f"📊 Запрос топа для сервера {server.name} ({server.id})")
         top = await db.get_server_top(str(server.id), 10)
-        logger.info(f"📊 Получено результатов: {len(top) if top else 0}")
         
         if not top:
-            return await interaction.followup.send("📊 Пока никто не активничал на этом сервере", ephemeral=True)
+            return await interaction.followup.send(" Пока никто не активничал на этом сервере", ephemeral=True)
         
         embed = discord.Embed(
             title=f"🏆 Топ 10 сервера {server.name}",
@@ -289,7 +284,7 @@ async def top_command(interaction: discord.Interaction):
             medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
             embed.add_field(
                 name=f"{medal} {user['username']}",
-                value=f"📏 Арматура: **{user['dick_size']:.1f} см**\n💦 Дрочек: **{user['wank_count']}**",
+                value=f"📏 Арматура: **{user['dick_size']:.1f} см**\n💦 Дро🍆ек: **{user['wank_count']}**",
                 inline=False
             )
         
@@ -304,9 +299,7 @@ async def global_top_command(interaction: discord.Interaction):
     await interaction.response.defer()
     
     try:
-        logger.info("📊 Запрос глобального топа")
         top = await db.get_global_top(10)
-        logger.info(f"📊 Получено результатов: {len(top) if top else 0}")
         
         if not top:
             return await interaction.followup.send("📊 База данных пуста", ephemeral=True)
@@ -321,14 +314,14 @@ async def global_top_command(interaction: discord.Interaction):
             medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
             embed.add_field(
                 name=f"{medal} {user['username']}",
-                value=f"📏 Арматура: **{user['dick_size']:.1f} см**\n💦 Дрочек: **{user['wank_count']}**",
+                value=f"📏 Арматура: **{user['dick_size']:.1f} см**\n💦 Дро🍆ек: **{user['wank_count']}**",
                 inline=False
             )
         
         await interaction.followup.send(embed=embed)
     except Exception as e:
         logger.error(f"❌ Error in /глобальный_топ: {e}", exc_info=True)
-        await interaction.followup.send(f"❌ Произошла ошибка: {str(e)}", ephemeral=True)
+        await interaction.followup.send(f" Произошла ошибка: {str(e)}", ephemeral=True)
 
 
 @client.tree.command(name="стата", description="Твоя статистика")
@@ -347,11 +340,10 @@ async def stats_command(interaction: discord.Interaction):
         
         embed = discord.Embed(
             title=f"📊 Статистика {user.name}",
-            description="*(Статистика сохраняется глобально по ID)*",
             color=discord.Color.blue()
         )
         embed.add_field(name="📏 Арматура", value=f"**{user_data['dick_size']:.1f} см**", inline=True)
-        embed.add_field(name="💦 Дрочек", value=f"**{user_data['wank_count']}**", inline=True)
+        embed.add_field(name="💦 Дро🍆ек", value=f"**{user_data['wank_count']}**", inline=True)
         embed.add_field(name="👥 Всего игроков", value=f"**{total_users}**", inline=True)
         
         await interaction.followup.send(embed=embed)
