@@ -1,6 +1,6 @@
 """
 Членометр - Игровой бот для Lolka
-ИСПРАВЛЕНА ЛОГИКА КУЛДАУНА
+СТАТИСТИКА И КУЛДАУНЫ ПРИВЯЗАНЫ СТРОГО К user_id (ГЛОБАЛЬНО ДЛЯ ВСЕХ СЕРВЕРОВ)
 """
 
 import discord
@@ -90,17 +90,17 @@ async def before_change_status():
 # ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 
 async def process_wank(interaction: discord.Interaction):
+    # user.id уникален и одинаков на ВСЕХ серверах!
     user = interaction.user
     user_id = str(user.id)
     
     try:
-        # Получаем пользователя из БД
+        # Получаем пользователя из БД по его глобальному ID
         user_data = await db.get_user(user_id, user.name)
         
-        # ПРОВЕРКА КУЛДАУНА - ИСПРАВЛЕННАЯ ЛОГИКА
+        # ПРОВЕРКА КУЛДАУНА (работает глобально, так как last_wank привязан к user_id)
         if user_data:
             last_wank_str = user_data.get('last_wank')
-            logger.info(f" last_wank из БД: {last_wank_str}")
             
             if last_wank_str and last_wank_str.strip():
                 try:
@@ -112,8 +112,6 @@ async def process_wank(interaction: discord.Interaction):
                     time_diff = (now - last_wank).total_seconds()
                     remaining_seconds = COOLDOWN_WANK - time_diff
                     
-                    logger.info(f"⏱️ Прошло времени: {time_diff:.0f} сек, кулдаун: {COOLDOWN_WANK} сек, осталось: {remaining_seconds:.0f} сек")
-                    
                     # Если ещё не прошло 15 минут
                     if remaining_seconds > 0:
                         minutes = int(remaining_seconds // 60)
@@ -124,13 +122,13 @@ async def process_wank(interaction: discord.Interaction):
                         )
                 except Exception as e:
                     logger.error(f"⚠️ Ошибка парсинга времени: {e}")
-                    # Если ошибка парсинга — просто продолжаем
         
         # Если кулдаун прошёл или это первый раз — выполняем команду
+        # add_wank увеличивает счётчик ГЛОБАЛЬНО для этого user_id
         count = await db.add_wank(user_id, user.name)
         await db.update_username(user_id, user.name)
         
-        # Обновляем статистику сервера
+        # Обновляем статистику сервера (для локального топа, но основное значение count - глобальное)
         if interaction.guild:
             user_data = await db.get_user(user_id, user.name)
             await db.update_server_stats(
@@ -142,7 +140,7 @@ async def process_wank(interaction: discord.Interaction):
         
         await interaction.followup.send(
             f"**{user.name}**, подро🍆ил 😈\n"
-            f"Дро🍆ек всего - {count}"
+            f"Дро🍆ек всего (глобально) - **{count}**"
         )
         
     except Exception as e:
@@ -157,7 +155,7 @@ async def process_up(interaction: discord.Interaction):
     try:
         user_data = await db.get_user(user_id, user.name)
         
-        # ПРОВЕРКА КУЛДАУНА - ИСПРАВЛЕННАЯ ЛОГИКА
+        # ПРОВЕРКА КУЛДАУНА (работает глобально, так как last_up привязан к user_id)
         if user_data:
             last_up_str = user_data.get('last_up')
             
@@ -178,6 +176,7 @@ async def process_up(interaction: discord.Interaction):
                 except Exception as e:
                     logger.error(f"⚠️ Ошибка парсинга времени: {e}")
         
+        # Увеличиваем размер ГЛОБАЛЬНО для этого user_id
         growth = random.randint(1, 10)
         new_size = await db.add_size(user_id, growth, user.name)
         await db.update_username(user_id, user.name)
@@ -193,11 +192,11 @@ async def process_up(interaction: discord.Interaction):
         
         await interaction.followup.send(
             f"**{user.name}**, вы успешно вырастили свою арматуру на **{growth} см**! 📏\n"
-            f"Ваша арматура: **{new_size:.1f} см**"
+            f"Ваша арматура (глобально): **{new_size:.1f} см**"
         )
     except Exception as e:
         logger.error(f"❌ Error in /ап: {e}", exc_info=True)
-        await interaction.followup.send(f" Произошла ошибка: {str(e)}", ephemeral=True)
+        await interaction.followup.send(f"❌ Произошла ошибка: {str(e)}", ephemeral=True)
 
 
 # ==================== СОБЫТИЯ ====================
@@ -219,10 +218,11 @@ async def on_ready():
     logger.info(f"📊 Серверов: {len(client.guilds)}")
     
     total_users = await db.get_total_users()
-    logger.info(f" Пользователей в БД: {total_users}")
+    logger.info(f"👥 Пользователей в БД: {total_users}")
     
     logger.info(f"⏱️ Кулдаун /дроч: {COOLDOWN_WANK // 60} мин ({COOLDOWN_WANK} сек)")
-    logger.info(f"️ Кулдаун /ап: {COOLDOWN_UP // 60} мин ({COOLDOWN_UP} сек)")
+    logger.info(f"⏱️ Кулдаун /ап: {COOLDOWN_UP // 60} мин ({COOLDOWN_UP} сек)")
+    logger.info("💾 Статистика и кулдауны привязаны к ID пользователя (ГЛОБАЛЬНО)")
     logger.info("🔄 Авто-смена статуса каждые 2 минуты запущена")
     logger.info("=" * 70)
     
@@ -238,19 +238,19 @@ async def on_ready():
 
 # ==================== КОМАНДЫ ====================
 
-@client.tree.command(name="дроч", description="Увеличить счётчик дро🍆ек на 1")
+@client.tree.command(name="дроч", description="Увеличить счётчик дрочек на 1")
 async def wank_command(interaction: discord.Interaction):
     await interaction.response.defer()
     await process_wank(interaction)
 
 
-@client.tree.command(name="дрочить", description="Увеличить счётчик дро🍆ек на 1")
+@client.tree.command(name="дрочить", description="Увеличить счётчик дрочек на 1")
 async def wank2_command(interaction: discord.Interaction):
     await interaction.response.defer()
     await process_wank(interaction)
 
 
-@client.tree.command(name="подрочить", description="Увеличить счётчик дро🍆ек на 1")
+@client.tree.command(name="подрочить", description="Увеличить счётчик дрочек на 1")
 async def wank3_command(interaction: discord.Interaction):
     await interaction.response.defer()
     await process_wank(interaction)
@@ -287,7 +287,7 @@ async def top_command(interaction: discord.Interaction):
             medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
             embed.add_field(
                 name=f"{medal} {user['username']}",
-                value=f" Арматура: **{user['dick_size']:.1f} см**\n💦 Дро🍆ек: **{user['wank_count']}**",
+                value=f"📏 Арматура: **{user['dick_size']:.1f} см**\n💦 Дрочек: **{user['wank_count']}**",
                 inline=False
             )
         
@@ -302,7 +302,7 @@ async def global_top_command(interaction: discord.Interaction):
     await interaction.response.defer()
     
     try:
-        logger.info(" Запрос глобального топа")
+        logger.info("📊 Запрос глобального топа")
         top = await db.get_global_top(10)
         logger.info(f"📊 Получено результатов: {len(top) if top else 0}")
         
@@ -311,7 +311,7 @@ async def global_top_command(interaction: discord.Interaction):
         
         embed = discord.Embed(
             title="🌍 Глобальный топ 10",
-            description="Все сервера вместе",
+            description="Статистика общая для всех серверов",
             color=discord.Color.purple()
         )
         
@@ -319,7 +319,7 @@ async def global_top_command(interaction: discord.Interaction):
             medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
             embed.add_field(
                 name=f"{medal} {user['username']}",
-                value=f"📏 Арматура: **{user['dick_size']:.1f} см**\n💦 Дро🍆ек: **{user['wank_count']}**",
+                value=f"📏 Арматура: **{user['dick_size']:.1f} см**\n💦 Дрочек: **{user['wank_count']}**",
                 inline=False
             )
         
@@ -345,10 +345,11 @@ async def stats_command(interaction: discord.Interaction):
         
         embed = discord.Embed(
             title=f"📊 Статистика {user.name}",
+            description="*(Статистика сохраняется глобально по ID)*",
             color=discord.Color.blue()
         )
-        embed.add_field(name=" Арматура", value=f"**{user_data['dick_size']:.1f} см**", inline=True)
-        embed.add_field(name="💦 Дро🍆ек", value=f"**{user_data['wank_count']}**", inline=True)
+        embed.add_field(name="📏 Арматура", value=f"**{user_data['dick_size']:.1f} см**", inline=True)
+        embed.add_field(name="💦 Дрочек", value=f"**{user_data['wank_count']}**", inline=True)
         embed.add_field(name="👥 Всего игроков", value=f"**{total_users}**", inline=True)
         
         await interaction.followup.send(embed=embed)
@@ -371,7 +372,8 @@ async def help_command(interaction: discord.Interaction):
                 "**/топ** - топ 10 пользователей этого сервера\n"
                 "**/глобальный_топ** - глобальный топ 10 по всем серверам\n"
                 "**/стата** - твоя личная статистика\n"
-                "**/help** - эта справка"
+                "**/help** - эта справка\n\n"
+                "💡 *Твоя статистика и кулдауны привязаны к твоему ID и одинаковы на всех серверах!*"
             ),
             color=discord.Color.blue()
         )
@@ -386,7 +388,7 @@ async def help_command(interaction: discord.Interaction):
 
 if __name__ == "__main__":
     try:
-        logger.info(" Запуск бота...")
+        logger.info("🚀 Запуск бота...")
         client.run(config.BOT_TOKEN)
     except discord.LoginFailure:
         logger.error("❌ Неверный токен! Проверьте BOT_TOKEN в config.py")
