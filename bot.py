@@ -140,7 +140,7 @@ async def process_wank(interaction: discord.Interaction):
         
         await interaction.followup.send(
             f"**{user.name}**, подро🍆ил 😈\n"
-            f"Дро🍆ек всего (глобально) - **{count}**"
+            f"Дро🍆ек всего - **{count}**"
         )
         
     except Exception as e:
