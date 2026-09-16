@@ -192,7 +192,7 @@ async def process_up(interaction: discord.Interaction):
         
         await interaction.followup.send(
             f"**{user.name}**, вы успешно вырастили свою арматуру на **{growth} см**! 📏\n"
-            f"Ваша арматура (глобально): **{new_size:.1f} см**"
+            f"Ваша арматура: **{new_size:.1f} см**"
         )
     except Exception as e:
         logger.error(f"❌ Error in /ап: {e}", exc_info=True)
@@ -222,7 +222,7 @@ async def on_ready():
     
     logger.info(f"⏱️ Кулдаун /дроч: {COOLDOWN_WANK // 60} мин ({COOLDOWN_WANK} сек)")
     logger.info(f"⏱️ Кулдаун /ап: {COOLDOWN_UP // 60} мин ({COOLDOWN_UP} сек)")
-    logger.info("💾 Статистика и кулдауны привязаны к ID пользователя (ГЛОБАЛЬНО)")
+    logger.info("💾 Статистика и кулдауны привязаны к ID пользователя")
     logger.info("🔄 Авто-смена статуса каждые 2 минуты запущена")
     logger.info("=" * 70)
     
@@ -238,19 +238,19 @@ async def on_ready():
 
 # ==================== КОМАНДЫ ====================
 
-@client.tree.command(name="дроч", description="Увеличить счётчик дрочек на 1")
+@client.tree.command(name="дроч", description="Увеличить счётчик дро🍆ек")
 async def wank_command(interaction: discord.Interaction):
     await interaction.response.defer()
     await process_wank(interaction)
 
 
-@client.tree.command(name="дрочить", description="Увеличить счётчик дрочек на 1")
+@client.tree.command(name="дрочить", description="Увеличить счётчик дро🍆ек")
 async def wank2_command(interaction: discord.Interaction):
     await interaction.response.defer()
     await process_wank(interaction)
 
 
-@client.tree.command(name="подрочить", description="Увеличить счётчик дрочек на 1")
+@client.tree.command(name="подрочить", description="Увеличить счётчик дро🍆ек")
 async def wank3_command(interaction: discord.Interaction):
     await interaction.response.defer()
     await process_wank(interaction)
@@ -349,7 +349,7 @@ async def stats_command(interaction: discord.Interaction):
             color=discord.Color.blue()
         )
         embed.add_field(name="📏 Арматура", value=f"**{user_data['dick_size']:.1f} см**", inline=True)
-        embed.add_field(name="💦 Дрочек", value=f"**{user_data['wank_count']}**", inline=True)
+        embed.add_field(name="💦 Дро🍆ек", value=f"**{user_data['wank_count']}**", inline=True)
         embed.add_field(name="👥 Всего игроков", value=f"**{total_users}**", inline=True)
         
         await interaction.followup.send(embed=embed)
